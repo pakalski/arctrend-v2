@@ -6,12 +6,14 @@ import { supabase } from '@/lib/supabase';
 export default function Home() {
   const [data, setData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [timeRange, setTimeRange] = useState('30d');
   const [loading, setLoading] = useState(false);
 
   const loadData = async () => {
     const { data: result } = await supabase
       .from('network_snapshots')
       .select('*')
+      .eq('network', 'arc_testnet')
       .order('date', { ascending: true });
     setData(result || []);
   };
@@ -40,51 +42,60 @@ export default function Home() {
       });
 
       await loadData();
-      alert('✅ Live Arc testnet data refreshed!');
+      alert('✅ Live data from Arc testnet loaded!');
     } catch (e) {
-      alert('Could not fetch live data right now. Try again in a few seconds.');
+      alert('Could not fetch live data. Try again in a moment.');
     }
     setLoading(false);
   };
 
-  const tabs = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'institutional', label: 'Institutional Signals' },
-    { id: 'competitive', label: 'Competitive Benchmark' },
-    { id: 'treasury', label: 'My Treasury Contract' },
-  ];
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
+      {/* Header */}
       <div className="border-b border-slate-800 bg-slate-900">
         <div className="max-w-7xl mx-auto px-8 py-8 flex justify-between items-center">
           <div>
             <h1 className="text-6xl font-bold tracking-tighter">ArcTrend</h1>
             <p className="text-slate-400 text-2xl mt-1">Arc Testnet • Institutional Adoption Dashboard</p>
           </div>
-          <button
-            onClick={refreshLiveData}
-            disabled={loading}
-            className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium flex items-center gap-2"
-          >
-            {loading ? 'Fetching...' : '🔄 Refresh Live Arc Data'}
-          </button>
+          <div className="flex items-center gap-4">
+            <select 
+              value={timeRange} 
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-6 py-3 text-lg"
+            >
+              <option value="7d">1 Week</option>
+              <option value="30d">1 Month</option>
+              <option value="90d">3 Months</option>
+              <option value="180d">6 Months</option>
+              <option value="365d">1 Year</option>
+              <option value="all">All Time</option>
+            </select>
+            <button
+              onClick={refreshLiveData}
+              disabled={loading}
+              className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium flex items-center gap-2"
+            >
+              {loading ? 'Fetching live data...' : '🔄 Refresh Live Arc Data'}
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="max-w-7xl mx-auto px-8">
         <div className="flex border-b border-slate-700">
-          {tabs.map((tab) => (
+          {['overview', 'institutional', 'competitive', 'treasury'].map((tab) => (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
               className={`px-8 py-6 text-lg font-medium border-b-2 transition-all ${
-                activeTab === tab.id 
-                  ? 'border-emerald-400 text-white' 
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
+                activeTab === tab ? 'border-emerald-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              {tab.label}
+              {tab === 'overview' ? 'Overview' : 
+               tab === 'institutional' ? 'Institutional Signals' : 
+               tab === 'competitive' ? 'Competitive Benchmark' : 'My Treasury Contract'}
             </button>
           ))}
         </div>
@@ -122,8 +133,8 @@ export default function Home() {
               <KpiChart title="New Wallets" data={data} dataKey="new_wallets" color="#8b5cf6" />
               <KpiChart title="New Contracts" data={data} dataKey="new_contracts" color="#f59e0b" />
             </div>
-            <p className="text-slate-400 text-sm mt-8 text-center">
-              Note: Full multi-chain live comparison can be added next — this shows the structure and real Arc data.
+            <p className="text-center text-slate-400 mt-10 text-sm">
+              Full live comparison to Base and Arbitrum can be added next. This shows the structure using your Arc data.
             </p>
           </div>
         )}
@@ -142,7 +153,8 @@ export default function Home() {
               0x5391d64389995d86dDb7a8FfdC4F8d854B61a0FF
             </div>
             <p className="mt-10 text-slate-300 text-lg">
-              This contract allows batch payments to multiple addresses in one transaction — a core treasury operations pattern that institutions test on Arc.
+              This contract allows you (the owner) to send USDC to many addresses in a single transaction. 
+              It is a real treasury operations pattern that large institutions test on Arc.
             </p>
           </div>
         )}
