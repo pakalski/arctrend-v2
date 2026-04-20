@@ -6,19 +6,51 @@ import { supabase } from '@/lib/supabase';
 export default function Home() {
   const [data, setData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    supabase
+  const loadData = async () => {
+    const { data: result } = await supabase
       .from('network_snapshots')
       .select('*')
-      .eq('network', 'arc_testnet')
-      .order('date', { ascending: true })
-      .then(({ data: result }) => setData(result || []));
+      .order('date', { ascending: true });
+    setData(result || []);
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  const refreshLiveData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('https://testnet.arcscan.app/api/v2/stats');
+      const stats = await res.json();
+
+      const today = new Date().toISOString().split('T')[0];
+
+      await supabase.from('network_snapshots').upsert({
+        date: today,
+        network: 'arc_testnet',
+        active_wallets: stats.active_addresses_24h || 0,
+        new_wallets: stats.new_addresses_24h || 0,
+        tx_count: stats.transactions_24h || 0,
+        usdc_volume: stats.usdc_volume_24h || 0,
+        new_contracts: stats.new_contracts_24h || 0,
+        avg_gas_fee: stats.average_gas_price || 0,
+      });
+
+      await loadData();
+      alert('✅ Live Arc testnet data refreshed!');
+    } catch (e) {
+      alert('Could not fetch live data right now. Try again in a few seconds.');
+    }
+    setLoading(false);
+  };
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'institutional', label: 'Institutional Signals' },
+    { id: 'competitive', label: 'Competitive Benchmark' },
     { id: 'treasury', label: 'My Treasury Contract' },
   ];
 
@@ -30,12 +62,13 @@ export default function Home() {
             <h1 className="text-6xl font-bold tracking-tighter">ArcTrend</h1>
             <p className="text-slate-400 text-2xl mt-1">Arc Testnet • Institutional Adoption Dashboard</p>
           </div>
-          <div className="text-right">
-            <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-5 py-2 rounded-2xl text-sm font-medium">
-              <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
-              LIVE ON ARC TESTNET
-            </div>
-          </div>
+          <button
+            onClick={refreshLiveData}
+            disabled={loading}
+            className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium flex items-center gap-2"
+          >
+            {loading ? 'Fetching...' : '🔄 Refresh Live Arc Data'}
+          </button>
         </div>
       </div>
 
@@ -78,6 +111,23 @@ export default function Home() {
           </div>
         )}
 
+        {/* Competitive Benchmark Tab */}
+        {activeTab === 'competitive' && (
+          <div className="mt-10">
+            <h2 className="text-3xl font-semibold mb-8">Competitive Benchmark</h2>
+            <p className="text-slate-400 mb-6">Arc Testnet vs Base Sepolia vs Arbitrum Sepolia</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <KpiChart title="Daily Active Wallets" data={data} dataKey="active_wallets" color="#10b981" />
+              <KpiChart title="USDC Volume" data={data} dataKey="usdc_volume" color="#3b82f6" prefix="$" />
+              <KpiChart title="New Wallets" data={data} dataKey="new_wallets" color="#8b5cf6" />
+              <KpiChart title="New Contracts" data={data} dataKey="new_contracts" color="#f59e0b" />
+            </div>
+            <p className="text-slate-400 text-sm mt-8 text-center">
+              Note: Full multi-chain live comparison can be added next — this shows the structure and real Arc data.
+            </p>
+          </div>
+        )}
+
         {/* Treasury Contract Tab */}
         {activeTab === 'treasury' && (
           <div className="mt-10 p-10 bg-gradient-to-br from-slate-900 to-emerald-950 border border-emerald-400/30 rounded-3xl">
@@ -92,7 +142,7 @@ export default function Home() {
               0x5391d64389995d86dDb7a8FfdC4F8d854B61a0FF
             </div>
             <p className="mt-10 text-slate-300 text-lg">
-              This contract is ready for institutional batch payments, treasury operations, and multi-recipient settlements — exactly what large institutions are testing on Arc.
+              This contract allows batch payments to multiple addresses in one transaction — a core treasury operations pattern that institutions test on Arc.
             </p>
           </div>
         )}
