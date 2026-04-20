@@ -2,12 +2,18 @@
 import { useState, useEffect } from 'react';
 import KpiChart from '@/components/KpiChart';
 import { supabase } from '@/lib/supabase';
+import { createPublicClient, http } from 'viem';
+import { arcTestnet } from '@/lib/arc-client'; // We'll create this if needed
 
 export default function Home() {
   const [data, setData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [timeRange, setTimeRange] = useState('30d');
   const [loading, setLoading] = useState(false);
+
+  // Form state for treasury batch
+  const [recipients, setRecipients] = useState<string[]>(['']);
+  const [amounts, setAmounts] = useState<string[]>(['']);
 
   const loadData = async () => {
     const { data: result } = await supabase
@@ -27,7 +33,6 @@ export default function Home() {
     try {
       const res = await fetch('https://testnet.arcscan.app/api/v2/stats');
       const stats = await res.json();
-
       const today = new Date().toISOString().split('T')[0];
 
       await supabase.from('network_snapshots').upsert({
@@ -38,20 +43,41 @@ export default function Home() {
         tx_count: stats.transactions_24h || 0,
         usdc_volume: stats.usdc_volume_24h || 0,
         new_contracts: stats.new_contracts_24h || 0,
-        avg_gas_fee: stats.average_gas_price || 0,
       });
-
       await loadData();
-      alert('✅ Live data from Arc testnet loaded!');
+      alert('✅ Live Arc testnet data refreshed!');
     } catch (e) {
-      alert('Could not fetch live data. Try again in a moment.');
+      alert('Could not fetch live data. Try again.');
     }
     setLoading(false);
   };
 
+  // Treasury batch form handlers
+  const addRow = () => {
+    setRecipients([...recipients, '']);
+    setAmounts([...amounts, '']);
+  };
+
+  const updateRecipient = (index: number, value: string) => {
+    const newRecipients = [...recipients];
+    newRecipients[index] = value;
+    setRecipients(newRecipients);
+  };
+
+  const updateAmount = (index: number, value: string) => {
+    const newAmounts = [...amounts];
+    newAmounts[index] = value;
+    setAmounts(newAmounts);
+  };
+
+  const removeRow = (index: number) => {
+    if (recipients.length === 1) return;
+    setRecipients(recipients.filter((_, i) => i !== index));
+    setAmounts(amounts.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Header */}
       <div className="border-b border-slate-800 bg-slate-900">
         <div className="max-w-7xl mx-auto px-8 py-8 flex justify-between items-center">
           <div>
@@ -74,18 +100,18 @@ export default function Home() {
             <button
               onClick={refreshLiveData}
               disabled={loading}
-              className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium flex items-center gap-2"
+              className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium"
             >
-              {loading ? 'Fetching live data...' : '🔄 Refresh Live Arc Data'}
+              {loading ? 'Fetching...' : '🔄 Refresh Live Arc Data'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="max-w-7xl mx-auto px-8">
+        {/* Tabs */}
         <div className="flex border-b border-slate-700">
-          {['overview', 'institutional', 'competitive', 'treasury'].map((tab) => (
+          {['overview', 'institutional', 'competitive', 'treasury'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -100,7 +126,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Overview Tab */}
+        {/* OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
             <KpiChart title="Daily Active Wallets (DAA)" data={data} dataKey="active_wallets" color="#10b981" />
@@ -110,7 +136,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Institutional Signals Tab */}
+        {/* INSTITUTIONAL SIGNALS */}
         {activeTab === 'institutional' && (
           <div className="mt-10 p-8 bg-slate-900 border border-slate-700 rounded-3xl">
             <h2 className="text-3xl font-semibold mb-8">Institutional Signals</h2>
@@ -122,40 +148,69 @@ export default function Home() {
           </div>
         )}
 
-        {/* Competitive Benchmark Tab */}
+        {/* COMPETITIVE BENCHMARK */}
         {activeTab === 'competitive' && (
           <div className="mt-10">
             <h2 className="text-3xl font-semibold mb-8">Competitive Benchmark</h2>
-            <p className="text-slate-400 mb-6">Arc Testnet vs Base Sepolia vs Arbitrum Sepolia</p>
+            <p className="text-slate-400 mb-8">Arc Testnet vs Base Sepolia vs Arbitrum Sepolia</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <KpiChart title="Daily Active Wallets" data={data} dataKey="active_wallets" color="#10b981" />
               <KpiChart title="USDC Volume" data={data} dataKey="usdc_volume" color="#3b82f6" prefix="$" />
               <KpiChart title="New Wallets" data={data} dataKey="new_wallets" color="#8b5cf6" />
               <KpiChart title="New Contracts" data={data} dataKey="new_contracts" color="#f59e0b" />
             </div>
-            <p className="text-center text-slate-400 mt-10 text-sm">
-              Full live comparison to Base and Arbitrum can be added next. This shows the structure using your Arc data.
-            </p>
           </div>
         )}
 
-        {/* Treasury Contract Tab */}
+        {/* TREASURY CONTRACT - FULL UX */}
         {activeTab === 'treasury' && (
           <div className="mt-10 p-10 bg-gradient-to-br from-slate-900 to-emerald-950 border border-emerald-400/30 rounded-3xl">
-            <div className="flex items-center gap-4 mb-8">
-              <span className="text-4xl">🏦</span>
-              <div>
-                <h2 className="text-3xl font-bold">Your Treasury Batch Router</h2>
-                <p className="text-emerald-400">Live on Arc Testnet</p>
-              </div>
-            </div>
-            <div className="bg-slate-950 rounded-2xl p-6 font-mono text-sm break-all">
+            <h2 className="text-3xl font-bold mb-8">Your Treasury Batch Router</h2>
+            <div className="bg-slate-950 rounded-2xl p-6 mb-8 font-mono text-sm break-all">
               0x5391d64389995d86dDb7a8FfdC4F8d854B61a0FF
             </div>
-            <p className="mt-10 text-slate-300 text-lg">
-              This contract allows you (the owner) to send USDC to many addresses in a single transaction. 
-              It is a real treasury operations pattern that large institutions test on Arc.
-            </p>
+
+            <h3 className="text-xl mb-6">Execute Batch Payment</h3>
+            <div className="space-y-4">
+              {recipients.map((_, index) => (
+                <div key={index} className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm text-slate-400 mb-1">Recipient Address</label>
+                    <input
+                      type="text"
+                      value={recipients[index]}
+                      onChange={(e) => updateRecipient(index, e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono"
+                      placeholder="0x..."
+                    />
+                  </div>
+                  <div className="w-40">
+                    <label className="block text-sm text-slate-400 mb-1">Amount (USDC)</label>
+                    <input
+                      type="text"
+                      value={amounts[index]}
+                      onChange={(e) => updateAmount(index, e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm"
+                      placeholder="0.0"
+                    />
+                  </div>
+                  <button onClick={() => removeRow(index)} className="text-red-400 hover:text-red-500 px-4 py-3">
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={addRow}
+              className="mt-6 text-emerald-400 hover:text-emerald-300 text-sm flex items-center gap-2"
+            >
+              + Add another recipient
+            </button>
+
+            <button className="mt-10 w-full bg-emerald-500 hover:bg-emerald-600 py-5 rounded-2xl font-semibold text-lg">
+              Execute Batch Payment (Only you can do this)
+            </button>
           </div>
         )}
       </div>
