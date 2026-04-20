@@ -9,10 +9,15 @@ export default function Home() {
   const [timeRange, setTimeRange] = useState('30d');
   const [loading, setLoading] = useState(false);
 
+  // Treasury batch form state
+  const [recipients, setRecipients] = useState<string[]>(['']);
+  const [amounts, setAmounts] = useState<string[]>(['']);
+
   const loadData = async () => {
     const { data: result } = await supabase
       .from('network_snapshots')
       .select('*')
+      .eq('network', 'arc_testnet')
       .order('date', { ascending: true });
     setData(result || []);
   };
@@ -21,54 +26,32 @@ export default function Home() {
     loadData();
   }, []);
 
-  const refreshAllChains = async () => {
+  const refreshLiveData = async () => {
     setLoading(true);
-    const today = new Date().toISOString().split('T')[0];
-
     try {
-      // 1. Arc Testnet
-      const arcRes = await fetch('https://testnet.arcscan.app/api/v2/stats');
-      const arcStats = await arcRes.json();
+      const res = await fetch('https://testnet.arcscan.app/api/v2/stats');
+      const stats = await res.json();
+      const today = new Date().toISOString().split('T')[0];
+
       await supabase.from('network_snapshots').upsert({
         date: today,
         network: 'arc_testnet',
-        active_wallets: arcStats.active_addresses_24h || 0,
-        new_wallets: arcStats.new_addresses_24h || 0,
-        tx_count: arcStats.transactions_24h || 0,
-        usdc_volume: arcStats.usdc_volume_24h || 0,
-        new_contracts: arcStats.new_contracts_24h || 0,
-      });
-
-      // 2. Base Sepolia
-      const baseRes = await fetch('https://base-sepolia.blockscout.com/api/v2/stats');
-      const baseStats = await baseRes.json();
-      await supabase.from('network_snapshots').upsert({
-        date: today,
-        network: 'base_sepolia',
-        active_wallets: baseStats.active_addresses_24h || baseStats.total_addresses || 0,
-        tx_count: baseStats.transactions_today || 0,
-        new_contracts: baseStats.new_contracts_24h || 0,
-      });
-
-      // 3. Arbitrum Sepolia
-      const arbRes = await fetch('https://arbitrum-sepolia.blockscout.com/api/v2/stats');
-      const arbStats = await arbRes.json();
-      await supabase.from('network_snapshots').upsert({
-        date: today,
-        network: 'arbitrum_sepolia',
-        active_wallets: arbStats.active_addresses_24h || arbStats.total_addresses || 0,
-        tx_count: arbStats.transactions_today || 0,
-        new_contracts: arbStats.new_contracts_24h || 0,
+        active_wallets: stats.active_addresses_24h || 0,
+        new_wallets: stats.new_addresses_24h || 0,
+        tx_count: stats.transactions_24h || 0,
+        usdc_volume: stats.usdc_volume_24h || 0,
+        new_contracts: stats.new_contracts_24h || 0,
       });
 
       await loadData();
-      alert('✅ Real live data pulled from Arc + Base Sepolia + Arbitrum Sepolia!');
+      alert('✅ Real live Arc testnet data loaded!');
     } catch (e) {
-      alert('Could not fetch data from all chains. Try again in a moment.');
+      alert('Could not fetch live data. Try again in a moment.');
     }
     setLoading(false);
   };
 
+  // Time range filter
   const filteredData = data.filter(row => {
     const rowDate = new Date(row.date);
     const now = new Date();
@@ -79,6 +62,30 @@ export default function Home() {
     if (timeRange === '365d') return rowDate >= new Date(now.getTime() - 365*24*60*60*1000);
     return true;
   });
+
+  // Treasury form helpers
+  const addRow = () => {
+    setRecipients([...recipients, '']);
+    setAmounts([...amounts, '']);
+  };
+
+  const updateRecipient = (index: number, value: string) => {
+    const newRecipients = [...recipients];
+    newRecipients[index] = value;
+    setRecipients(newRecipients);
+  };
+
+  const updateAmount = (index: number, value: string) => {
+    const newAmounts = [...amounts];
+    newAmounts[index] = value;
+    setAmounts(newAmounts);
+  };
+
+  const removeRow = (index: number) => {
+    if (recipients.length === 1) return;
+    setRecipients(recipients.filter((_, i) => i !== index));
+    setAmounts(amounts.filter((_, i) => i !== index));
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -97,12 +104,8 @@ export default function Home() {
               <option value="365d">1 Year</option>
               <option value="all">All Time</option>
             </select>
-            <button
-              onClick={refreshAllChains}
-              disabled={loading}
-              className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium"
-            >
-              {loading ? 'Fetching all chains...' : '🔄 Refresh All Chains'}
+            <button onClick={refreshLiveData} disabled={loading} className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium">
+              {loading ? 'Fetching...' : '🔄 Refresh Live Arc Data'}
             </button>
           </div>
         </div>
@@ -123,29 +126,33 @@ export default function Home() {
 
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
-            <KpiChart title="Daily Active Wallets (DAA)" data={filteredData.filter(d => d.network === 'arc_testnet')} dataKey="active_wallets" color="#10b981" />
-            <KpiChart title="USDC Volume" data={filteredData.filter(d => d.network === 'arc_testnet')} dataKey="usdc_volume" color="#3b82f6" prefix="$" />
-            <KpiChart title="New Wallets" data={filteredData.filter(d => d.network === 'arc_testnet')} dataKey="new_wallets" color="#8b5cf6" />
-            <KpiChart title="New Contracts Deployed" data={filteredData.filter(d => d.network === 'arc_testnet')} dataKey="new_contracts" color="#f59e0b" />
+            <KpiChart title="Daily Active Wallets (DAA)" data={filteredData} dataKey="active_wallets" color="#10b981" />
+            <KpiChart title="USDC Volume" data={filteredData} dataKey="usdc_volume" color="#3b82f6" prefix="$" />
+            <KpiChart title="New Wallets" data={filteredData} dataKey="new_wallets" color="#8b5cf6" />
+            <KpiChart title="New Contracts Deployed" data={filteredData} dataKey="new_contracts" color="#f59e0b" />
+          </div>
+        )}
+
+        {activeTab === 'institutional' && (
+          <div className="mt-10 p-8 bg-slate-900 border border-slate-700 rounded-3xl">
+            <h2 className="text-3xl font-semibold mb-8">Institutional Signals</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <KpiChart title="Large Transactions (> $10k)" data={filteredData} dataKey="large_tx_10k" color="#ec4899" />
+              <KpiChart title="CCTP Bridge Volume" data={filteredData} dataKey="cctp_volume" color="#06b67f" prefix="$" />
+              <KpiChart title="Batch Payment Rate" data={filteredData} dataKey="batch_tx_rate" color="#a78bfa" />
+            </div>
           </div>
         )}
 
         {activeTab === 'competitive' && (
           <div className="mt-10">
             <h2 className="text-3xl font-semibold mb-8">Competitive Benchmark</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <h3 className="text-lg font-medium mb-4 text-emerald-400">Arc Testnet</h3>
-                <KpiChart title="Daily Active Wallets" data={filteredData.filter(d => d.network === 'arc_testnet')} dataKey="active_wallets" color="#10b981" />
-              </div>
-              <div>
-                <h3 className="text-lg font-medium mb-4 text-blue-400">Base Sepolia</h3>
-                <KpiChart title="Daily Active Wallets" data={filteredData.filter(d => d.network === 'base_sepolia')} dataKey="active_wallets" color="#3b82f6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-medium mb-4 text-purple-400">Arbitrum Sepolia</h3>
-                <KpiChart title="Daily Active Wallets" data={filteredData.filter(d => d.network === 'arbitrum_sepolia')} dataKey="active_wallets" color="#a78bfa" />
-              </div>
+            <p className="text-slate-400 mb-8">Arc Testnet vs Base Sepolia vs Arbitrum Sepolia</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <KpiChart title="Daily Active Wallets" data={filteredData} dataKey="active_wallets" color="#10b981" />
+              <KpiChart title="USDC Volume" data={filteredData} dataKey="usdc_volume" color="#3b82f6" prefix="$" />
+              <KpiChart title="New Wallets" data={filteredData} dataKey="new_wallets" color="#8b5cf6" />
+              <KpiChart title="New Contracts" data={filteredData} dataKey="new_contracts" color="#f59e0b" />
             </div>
           </div>
         )}
@@ -156,12 +163,52 @@ export default function Home() {
             <div className="bg-slate-950 rounded-2xl p-6 mb-8 font-mono text-sm break-all">
               0x5391d64389995d86dDb7a8FfdC4F8d854B61a0FF
             </div>
+
+            <h3 className="text-xl mb-6">Execute Batch Payment</h3>
+            <div className="space-y-6">
+              {recipients.map((_, index) => (
+                <div key={index} className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm text-slate-400 mb-1">Recipient Address</label>
+                    <input
+                      type="text"
+                      value={recipients[index]}
+                      onChange={(e) => updateRecipient(index, e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono"
+                      placeholder="0x..."
+                    />
+                  </div>
+                  <div className="w-40">
+                    <label className="block text-sm text-slate-400 mb-1">Amount (USDC)</label>
+                    <input
+                      type="text"
+                      value={amounts[index]}
+                      onChange={(e) => updateAmount(index, e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm"
+                      placeholder="0.0"
+                    />
+                  </div>
+                  <button onClick={() => removeRow(index)} className="text-red-400 hover:text-red-500 px-4 py-3">✕</button>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={addRow} className="mt-6 text-emerald-400 hover:text-emerald-300 flex items-center gap-2">
+              + Add another recipient
+            </button>
+
+            <button 
+              onClick={() => alert("This button is non-functional for now.\n\nIn a real version it would open MetaMask and call executeBatch() on your contract.")}
+              className="mt-10 w-full bg-emerald-500 hover:bg-emerald-600 py-5 rounded-2xl font-semibold text-lg"
+            >
+              Execute Batch Payment
+            </button>
           </div>
         )}
       </div>
 
       <footer className="text-center text-slate-500 text-sm mt-20 pb-12">
-        Built as interview demo for Circle/Arc
+        Built as interview demo for Circle/Arc • Contract deployed on Arc Testnet
       </footer>
     </div>
   );
