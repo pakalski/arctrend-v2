@@ -9,10 +9,6 @@ export default function Home() {
   const [timeRange, setTimeRange] = useState('30d');
   const [loading, setLoading] = useState(false);
 
-  // Treasury batch form
-  const [recipients, setRecipients] = useState<string[]>(['']);
-  const [amounts, setAmounts] = useState<string[]>(['']);
-
   const loadData = async () => {
     const { data: result } = await supabase
       .from('network_snapshots')
@@ -44,15 +40,15 @@ export default function Home() {
       });
 
       await loadData();
-      alert('✅ Live Arc testnet data refreshed!');
+      alert('✅ Real live data from Arc testnet loaded!');
     } catch (e) {
       alert('Could not fetch live data. Try again in a moment.');
     }
     setLoading(false);
   };
 
-  // Time range filtering
-  const filteredData = data.filter((row) => {
+  // Filter data based on time range
+  const filteredData = data.filter(row => {
     const rowDate = new Date(row.date);
     const now = new Date();
     if (timeRange === '7d') return rowDate >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -63,30 +59,6 @@ export default function Home() {
     return true; // All time
   });
 
-  // Treasury form helpers
-  const addRow = () => {
-    setRecipients([...recipients, '']);
-    setAmounts([...amounts, '']);
-  };
-
-  const updateRecipient = (index: number, value: string) => {
-    const newRecipients = [...recipients];
-    newRecipients[index] = value;
-    setRecipients(newRecipients);
-  };
-
-  const updateAmount = (index: number, value: string) => {
-    const newAmounts = [...amounts];
-    newAmounts[index] = value;
-    setAmounts(newAmounts);
-  };
-
-  const removeRow = (index: number) => {
-    if (recipients.length === 1) return;
-    setRecipients(recipients.filter((_, i) => i !== index));
-    setAmounts(amounts.filter((_, i) => i !== index));
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="border-b border-slate-800 bg-slate-900">
@@ -96,11 +68,7 @@ export default function Home() {
             <p className="text-slate-400 text-2xl mt-1">Arc Testnet • Institutional Adoption Dashboard</p>
           </div>
           <div className="flex items-center gap-4">
-            <select 
-              value={timeRange} 
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-xl px-6 py-3 text-lg"
-            >
+            <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-6 py-3 text-lg">
               <option value="7d">1 Week</option>
               <option value="30d">1 Month</option>
               <option value="90d">3 Months</option>
@@ -108,12 +76,8 @@ export default function Home() {
               <option value="365d">1 Year</option>
               <option value="all">All Time</option>
             </select>
-            <button
-              onClick={refreshLiveData}
-              disabled={loading}
-              className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium"
-            >
-              {loading ? 'Fetching...' : '🔄 Refresh Live Arc Data'}
+            <button onClick={refreshLiveData} disabled={loading} className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-2xl font-medium">
+              {loading ? 'Fetching real data...' : '🔄 Refresh Live Arc Data'}
             </button>
           </div>
         </div>
@@ -122,13 +86,7 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-8">
         <div className="flex border-b border-slate-700">
           {['overview', 'institutional', 'competitive', 'treasury'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-8 py-6 text-lg font-medium border-b-2 transition-all ${
-                activeTab === tab ? 'border-emerald-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`px-8 py-6 text-lg font-medium border-b-2 transition-all ${activeTab === tab ? 'border-emerald-400 text-white' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
               {tab === 'overview' ? 'Overview' : tab === 'institutional' ? 'Institutional Signals' : tab === 'competitive' ? 'Competitive Benchmark' : 'My Treasury Contract'}
             </button>
           ))}
@@ -164,9 +122,6 @@ export default function Home() {
               <KpiChart title="New Wallets" data={filteredData} dataKey="new_wallets" color="#8b5cf6" />
               <KpiChart title="New Contracts" data={filteredData} dataKey="new_contracts" color="#f59e0b" />
             </div>
-            <p className="text-center text-slate-400 mt-10 text-sm">
-              Note: Full live data from Base and Arbitrum can be added next. This shows the structure using your Arc data.
-            </p>
           </div>
         )}
 
@@ -176,43 +131,9 @@ export default function Home() {
             <div className="bg-slate-950 rounded-2xl p-6 mb-8 font-mono text-sm break-all">
               0x5391d64389995d86dDb7a8FfdC4F8d854B61a0FF
             </div>
-
-            <h3 className="text-xl mb-6">Execute Batch Payment</h3>
-            <div className="space-y-6">
-              {recipients.map((_, index) => (
-                <div key={index} className="flex gap-4 items-end">
-                  <div className="flex-1">
-                    <label className="block text-sm text-slate-400 mb-1">Recipient Address</label>
-                    <input
-                      type="text"
-                      value={recipients[index]}
-                      onChange={(e) => updateRecipient(index, e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono"
-                      placeholder="0x..."
-                    />
-                  </div>
-                  <div className="w-40">
-                    <label className="block text-sm text-slate-400 mb-1">Amount (USDC)</label>
-                    <input
-                      type="text"
-                      value={amounts[index]}
-                      onChange={(e) => updateAmount(index, e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm"
-                      placeholder="0.0"
-                    />
-                  </div>
-                  <button onClick={() => removeRow(index)} className="text-red-400 hover:text-red-500 px-4 py-3">✕</button>
-                </div>
-              ))}
-            </div>
-
-            <button onClick={addRow} className="mt-6 text-emerald-400 hover:text-emerald-300 flex items-center gap-2">
-              + Add another recipient
-            </button>
-
-            <button className="mt-10 w-full bg-emerald-500 hover:bg-emerald-600 py-5 rounded-2xl font-semibold text-lg">
-              Execute Batch Payment (MetaMask will prompt)
-            </button>
+            <p className="text-slate-300 text-lg">
+              This contract allows batch payments to multiple addresses in one transaction.
+            </p>
           </div>
         )}
       </div>
