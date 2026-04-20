@@ -46,17 +46,21 @@ export default function Home() {
           <KpiChart title="New Contracts" data={data} dataKey="new_contracts" color="#f59e0b" />
         </div>
 
-        <div className="mt-16 p-8 bg-slate-900 border border-slate-700 rounded-3xl">
-          <h2 className="text-2xl font-semibold mb-6">Your Deployed Treasury Contract</h2>
+        {/* Treasury Section */}
+        <div className="mt-16 p-8 bg-slate-900 border border-emerald-500/30 rounded-3xl">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3">
+            <span className="text-emerald-400">🏦</span> 
+            Your Deployed Treasury Contract
+          </h2>
           <p className="text-slate-400 mb-4">Contract Address:</p>
           <code className="bg-slate-950 p-4 rounded-2xl block text-emerald-400 font-mono text-sm break-all">
             0x5391d64389995d86dDb7a8FfdC4F8d854B61a0FF
           </code>
-          <p className="text-slate-400 mt-8 text-sm">This section will show live metrics from your treasury router once data is populated.</p>
+          <p className="text-emerald-400 text-sm mt-8">✅ Deployed on Arc Testnet • Ready for institutional batch payments</p>
         </div>
 
-        <p className="text-center text-slate-500 mt-16 text-sm">
-          Dashboard deployed successfully • Contract live on Arc Testnet
+        <p className="text-center text-slate-500 mt-20 text-sm">
+          Full dashboard with tabs, filters, and competitive benchmarks coming in next update
         </p>
       </div>
     </div>
